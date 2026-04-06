@@ -3,21 +3,23 @@ import json
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
-
-# Cargar variables de entorno desde el archivo .env
-load_dotenv()
 
 class FacturaExtractor:
     """Motor de extracción de datos para facturas usando Gemini 1.5 Flash."""
     
     def __init__(self):
+        # Cargamos el entorno y verificamos la API Key
+        load_dotenv()
         api_key = os.getenv("GOOGLE_API_KEY")
+        
         if not api_key:
-            raise ValueError("GOOGLE_API_KEY no configurada. Verifica tu archivo .env")
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+            print("[DEBUG] Variables de entorno actuales:", list(os.environ.keys()))
+            raise ValueError("GOOGLE_API_KEY no encontrada. Asegúrate de que el archivo .env exista y contenga la clave.")
+            
+        self.client = genai.Client(api_key=api_key)
 
     def _get_prompt(self) -> str:
         """Define el prompt estructurado con los campos requeridos por AFIP."""
@@ -51,14 +53,18 @@ class FacturaExtractor:
         mime_type = "application/pdf" if path.suffix.lower() == ".pdf" else "image/jpeg"
         
         try:
-            response = self.model.generate_content([
-                self._get_prompt(),
-                {"mime_type": mime_type, "data": path.read_bytes()}
-            ])
+            response = self.client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=[
+                    types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type),
+                    self._get_prompt()
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
+            )
             
-            # Limpieza de markdown en la respuesta
-            clean_json = response.text.replace("```json", "").replace("```", "").strip()
-            return json.loads(clean_json)
+            return json.loads(response.text)
         except Exception as e:
             print(f"[ERROR] Falló la extracción en {file_path}: {e}")
             return None

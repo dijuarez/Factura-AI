@@ -12,7 +12,7 @@ Sistema inteligente de automatización contable que utiliza **n8n**, **Python (u
 ## 🛠️ Stack Tecnológico
 - **Workflow Engine:** n8n (Server-side)
 - **AI Model:** Google Gemini 1.5 Flash
-- **Language:** Python 3.14+ managed by `uv`
+- **Language:** Python 3.13+ managed by `uv`
 - **CI/CD:** GitHub Actions
 - **Cloud Storage:** Google Drive & Sheets
 

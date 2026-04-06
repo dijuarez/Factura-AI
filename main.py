@@ -1,43 +1,56 @@
 import sys
 import json
+from pathlib import Path
 from extractor import FacturaExtractor, save_to_excel
 
 def main():
     """
-    Interfaz de línea de comandos (CLI) para procesar facturas localmente.
-    Sirve como entorno de pruebas para validar la extracción con Gemini 1.5 Flash 
-    antes de integrar el archivo en el flujo automatizado de n8n.
+    Procesa facturas de forma masiva desde la carpeta 'bills' o un archivo individual.
     """
     
-    # --- CONFIGURACIÓN DE RUTA ---
-    # Puedes definir un archivo por defecto para pruebas rápidas aquí:
-    file_path = "factura_test.pdf" 
-
-    # Si pasas un argumento (ej: uv run main.py mi_factura.jpg), tiene prioridad
+    # Definimos la carpeta de facturas por defecto
+    bills_dir = Path("bills")
+    
+    # Si se pasa un argumento, procesamos ese archivo/directorio específico
     if len(sys.argv) >= 2:
-        file_path = sys.argv[1]
+        target = Path(sys.argv[1])
+    else:
+        target = bills_dir
 
-    if not file_path:
-        print("Uso: uv run main.py <ruta_del_archivo>")
+    # Verificamos la existencia del objetivo
+    if not target.exists():
+        if target == bills_dir:
+            target.mkdir()
+            print(f"[INFO] Carpeta '{bills_dir}' creada. Coloca tus facturas allí.")
+        else:
+            print(f"[ERROR] No se encontró: {target}")
         return
 
-    print(f"--- Iniciando procesamiento de {file_path} ---")
-    
-    # Instanciamos el motor de extracción (requiere GOOGLE_API_KEY en .env)
+    # Identificamos los archivos a procesar (PDF e imágenes)
+    valid_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
+    if target.is_dir():
+        files_to_process = [f for f in target.iterdir() if f.suffix.lower() in valid_extensions]
+    else:
+        files_to_process = [target] if target.suffix.lower() in valid_extensions else []
+
+    if not files_to_process:
+        print(f"[INFO] No se encontraron archivos válidos para procesar en {target}")
+        return
+
+    print(f"--- Iniciando procesamiento de {len(files_to_process)} archivo(s) ---")
     extractor = FacturaExtractor()
     
-    # Ejecutamos la llamada multimodal a Gemini
-    data = extractor.extract(file_path)
-    
-    if data:
-        print("\n[SUCCESS] Extracción exitosa. Datos recuperados:")
-        # Mostramos el JSON formateado para validación visual
-        print(json.dumps(data, indent=2, ensure_ascii=False))
+    for file_path in files_to_process:
+        print(f"\nProcesando: {file_path.name}...")
+        data = extractor.extract(str(file_path))
         
-        # Persistimos la información en el archivo Excel local
-        save_to_excel(data)
-    else:
-        print("\n[ERROR] No se pudo extraer la información del documento.")
+        if data:
+            print(f"[SUCCESS] {file_path.name} procesado correctamente.")
+            save_to_excel(data)
+        else:
+            print(f"[ERROR] Falló el procesamiento de {file_path.name}")
+
+    print("\n--- Proceso finalizado ---")
 
 if __name__ == "__main__":
     main()
